@@ -28,38 +28,81 @@ void Game::GameLoop()
 	SDL_Event e;
 	bool quit = false;
 	SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-	Player playerObj(LoadTexture("src/Graphic/Player.png"), 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 0, 0);
+	LoadTexture("src/Graphic/Player.png");
+	LoadTexture("src/Graphic/Shooter.png");
+	LoadTexture("src/Graphic/Grass.png");
+	Player playerObj(textures[PLAYERTEXTURE]);
+	float xOff = SCREEN_WIDTH / 2;
+	float yOff = SCREEN_HEIGHT / 2;
+	Background background(textures[BACKGROUNDTEXTURE],xOff,yOff);
+	spawnTimer = SDL_GetTicks64();
 	while (!quit)
 	{
-		while (SDL_PollEvent(&e) != 0)
+		if (spawnTimer + 200 < SDL_GetTicks64())
 		{
-			playerObj.handleEvent(e);
-			//User requests quit
-			if (e.type == SDL_QUIT)
-			{
-				quit = true;
-			}
+			EnemySpawn(offset);
+			spawnTimer = SDL_GetTicks64();
 		}
 		//updatetime
 		msTimer = SDL_GetTicks64();
+		while (SDL_PollEvent(&e) != 0)
+		{
+			playerObj.HandleEvent(e);
+			//User requests quit
+			if (e.type == SDL_QUIT || e.key.keysym.sym == SDLK_ESCAPE)
+			{
+				quit = true;
+			}
+			if (e.type == SDL_MOUSEBUTTONDOWN) {
+				int x, y;
+				SDL_GetMouseState(&x, &y);
+				x += offset.x;
+				y += offset.y;
+				for (int i = 0; i < enemies.size(); i++)
+				{
+					if (x > enemies[i].oX - enemies[i].oWidth / 2 && x < enemies[i].oX + enemies[i].oWidth / 2)
+						if (y > enemies[i].oY - enemies[i].oHeight / 2 && y < enemies[i].oY + enemies[i].oHeight / 2)
+						{
+							enemies.erase(enemies.begin() + i);
+							i--;
+						}
+				}
+			}
+		}
 		//move
-		Move(playerObj);
+		playerObj.Move();
+		for (int i = 0; i < enemies.size(); i++)
+		{
+			enemies[i].ToPlayer(playerObj);
+			enemies[i].Move();
+		}
+		//update offset
+		offset = {playerObj.oX-xOff,playerObj.oY-yOff};
+		//backgroundmovement
+		background.BackgroundIllusion(offset);
 		//Clear screen
 		SDL_RenderClear(gRenderer);
-		//renderer
+		//renders
+		Render(background);
 		Render(playerObj);
+		for (int i = 0; i < enemies.size(); i++)
+		{
+			Render(enemies[i]);
+		}
 		//Update screen
 		SDL_RenderPresent(gRenderer);
+		//limits fps
+		if(((SDL_GetTicks64() - msTimer) < 16.666f)) SDL_Delay(16.666f - (SDL_GetTicks64() - msTimer));
 	}
 	Close();
 }
 
 void Game::Close()
 {
-	while (!sdlTextures.empty())
+	while (!textures.empty())
 	{
-		SDL_DestroyTexture(sdlTextures[0]);
-		sdlTextures.erase(sdlTextures.begin());
+		SDL_DestroyTexture(textures[0]);
+		textures.erase(textures.begin());
 	}
 	SDL_DestroyRenderer(gRenderer);
 	SDL_DestroyWindow(gWindow);
@@ -70,29 +113,12 @@ void Game::Close()
 template<typename T> void Game::Render(T sprite)
 {
 	//where to render
-	SDL_Rect renderQuad = { sprite.oX, sprite.oY, sprite.oWidth, sprite.oHeight };
+	SDL_Rect renderQuad = { sprite.oX-offset.x-sprite.oWidth/2, sprite.oY-offset.y-sprite.oHeight/2, sprite.oWidth, sprite.oHeight };
 	//Render to screen
 	SDL_RenderCopyEx(gRenderer, sprite.oTexture, NULL, &renderQuad, sprite.oAngle, NULL, SDL_FLIP_NONE);
 }
 
-template<typename T> void Game::Move(T sprite)
-{
-	//x axis movement
-	sprite.oX += sprite.ovelX;
-	//If the Player went too far to the left set it to lowest left
-	if (sprite.oX < 0)  sprite.oX = 0;
-	//If the Player went too far to the right set it to lowest right
-	if (sprite.oX + sprite.oWidth > SCREEN_WIDTH) sprite.oX = SCREEN_WIDTH - sprite.oWidth;
-	//y axis movement
-	sprite.oY += sprite.ovelY;
-	//If the Player went too far up set it to lowest up
-	if (sprite.oY < 0) sprite.oY = 0;
-	//if the player moves too far down set it to lowest down
-	if (sprite.oY + sprite.oHeight > SCREEN_HEIGHT) sprite.oY = SCREEN_HEIGHT - sprite.oHeight;
-	if(sprite.oX!=360.0f)printf("before%f", sprite.oX);
-}
-
-SDL_Texture* Game::LoadTexture(std::string path)
+void Game::LoadTexture(std::string path)
 {
 	//texture to return
 	SDL_Texture* newTexture = NULL;
@@ -101,40 +127,109 @@ SDL_Texture* Game::LoadTexture(std::string path)
 	if (loadedSurface == NULL)
 	{
 		IMG_GetError();
-		return newTexture;
+		return;
 	}
 	//Create texture from loaded surface
 	newTexture = SDL_CreateTextureFromSurface(gRenderer, loadedSurface);
 	if (newTexture == NULL)
 	{
 		printf(SDL_GetError());
-		return newTexture;
+		return;
 	}
 	//free the old surface
 	SDL_FreeSurface(loadedSurface);
-	sdlTextures.push_back(newTexture);
-	return newTexture;
+	textures.push_back(newTexture);
 }
-void Player::handleEvent(SDL_Event& e)
+
+void Game::EnemySpawn(SDL_FPoint offset)
+{
+	int x = offset.x;
+	int y = offset.y;
+	switch (rand() % 4)
+	{
+	case 0:
+		x += rand() % SCREEN_WIDTH;
+		break;
+	case 1:
+		x += SCREEN_WIDTH;
+		y += rand() % SCREEN_HEIGHT;
+		break;
+	case 2:
+		x += rand() % SCREEN_WIDTH;
+		y += SCREEN_HEIGHT;
+		break;
+	case 3:
+		y += rand() % SCREEN_HEIGHT;
+		break;
+	}
+	Enemy enemy(textures[ENEMYTEXTURE], x, y);
+	enemies.push_back(enemy);
+}
+
+void Player::HandleEvent(SDL_Event& e)
 {
 	if (e.type == SDL_KEYDOWN && e.key.repeat == 0)
 	{
 		switch (e.key.keysym.sym)
 		{
-		case SDLK_UP: ovelY -= 1.0f; break;
-		case SDLK_DOWN: ovelY += 1.0f; break;
-		case SDLK_LEFT: ovelX -= 1.0f; break;
-		case SDLK_RIGHT: ovelX += 1.0f; break;
+		case SDLK_UP: ovelY --; break;
+		case SDLK_DOWN: ovelY++; break;
+		case SDLK_LEFT: ovelX--; break;
+		case SDLK_RIGHT: ovelX++; break;
 		}
 	}
 	else if (e.type == SDL_KEYUP && e.key.repeat == 0)
 	{
 		switch (e.key.keysym.sym)
 		{
-		case SDLK_UP: ovelY += 1.0f; break;
-		case SDLK_DOWN: ovelY -= 1.0f; break;
-		case SDLK_LEFT: ovelX += 1.0f; break;
-		case SDLK_RIGHT: ovelX -= 1.0f; break;
+		case SDLK_UP: ovelY++; break;
+		case SDLK_DOWN: ovelY--; break;
+		case SDLK_LEFT: ovelX++; break;
+		case SDLK_RIGHT: ovelX--; break;
 		}
 	}
+}
+
+void Object::Move()
+{
+	float tempX = ovelX;
+	float tempY = ovelY;
+	int diff = sqrt(pow(tempX, 2) + pow(tempY, 2));
+	if (diff != 0)
+	{
+		tempX /= diff;
+		tempY /= diff;
+	}
+	oX += tempX *speedMod;
+	oY += tempY *speedMod;
+}
+
+void Background::BackgroundIllusion(SDL_FPoint offset)
+{
+	if (offset.x > bgState.x+tileSize - SCREEN_WIDTH)
+	{
+		bgState.x += tileSize;
+		oX += tileSize;
+	}
+	if (offset.x < bgState.x - tileSize - SCREEN_WIDTH)
+	{
+		bgState.x -= tileSize;
+		oX -= tileSize;
+	}
+	if (offset.y > bgState.y + tileSize - SCREEN_HEIGHT)
+	{
+		bgState.y += tileSize;
+		oY += tileSize;
+	}
+	if (offset.y < bgState.y - tileSize - SCREEN_HEIGHT)
+	{
+		bgState.y -= tileSize;
+		oY -= tileSize;
+	}
+}
+
+void Enemy::ToPlayer(Player player)
+{
+	ovelX = player.oX-oX;
+	ovelY = player.oY-oY;
 }
