@@ -20,6 +20,9 @@ bool Game::Start()
 		return false;
 	}
 	gScreenSurface = SDL_GetWindowSurface(gWindow);
+	LoadTexture("src/Graphic/Player.png");
+	LoadTexture("src/Graphic/Shooter.png");
+	LoadTexture("src/Graphic/Grass.png");
 	return true;
 }
 
@@ -28,9 +31,6 @@ void Game::GameLoop()
 	SDL_Event e;
 	bool quit = false;
 	SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-	LoadTexture("src/Graphic/Player.png");
-	LoadTexture("src/Graphic/Shooter.png");
-	LoadTexture("src/Graphic/Grass.png");
 	Player playerObj(textures[PLAYERTEXTURE]);
 	float xOff = SCREEN_WIDTH / 2;
 	float yOff = SCREEN_HEIGHT / 2;
@@ -38,6 +38,7 @@ void Game::GameLoop()
 	spawnTimer = SDL_GetTicks64();
 	while (!quit)
 	{
+		//spawn enemy every 200 ms
 		if (spawnTimer + 200 < SDL_GetTicks64())
 		{
 			EnemySpawn(offset);
@@ -53,6 +54,7 @@ void Game::GameLoop()
 			{
 				quit = true;
 			}
+			//kills enemy that player clicks on, will change to bullet creation
 			if (e.type == SDL_MOUSEBUTTONDOWN) {
 				int x, y;
 				SDL_GetMouseState(&x, &y);
@@ -71,6 +73,7 @@ void Game::GameLoop()
 		}
 		//move
 		playerObj.Move();
+		//fixes movement for all enemies
 		for (int i = 0; i < enemies.size(); i++)
 		{
 			enemies[i].ToPlayer(playerObj);
@@ -91,7 +94,7 @@ void Game::GameLoop()
 		}
 		//Update screen
 		SDL_RenderPresent(gRenderer);
-		//limits fps
+		//limits fps to 60
 		if(((SDL_GetTicks64() - msTimer) < 16.666f)) SDL_Delay(16.666f - (SDL_GetTicks64() - msTimer));
 	}
 	Close();
@@ -145,22 +148,24 @@ void Game::EnemySpawn(SDL_FPoint offset)
 {
 	int x = offset.x;
 	int y = offset.y;
-	switch (rand() % 4)
+	int lenghtAround = rand() % (SCREEN_HEIGHT * 2 + SCREEN_WIDTH * 2);
+	if (lenghtAround < SCREEN_WIDTH)
 	{
-	case 0:
-		x += rand() % SCREEN_WIDTH;
-		break;
-	case 1:
+		x += lenghtAround;
+	}
+	else if (lenghtAround < SCREEN_WIDTH + SCREEN_HEIGHT)
+	{
 		x += SCREEN_WIDTH;
-		y += rand() % SCREEN_HEIGHT;
-		break;
-	case 2:
-		x += rand() % SCREEN_WIDTH;
+		y += lenghtAround - SCREEN_WIDTH;
+	}
+	else if (lenghtAround < SCREEN_WIDTH * 2 + SCREEN_HEIGHT)
+	{
+		x += lenghtAround - SCREEN_HEIGHT - SCREEN_WIDTH;
 		y += SCREEN_HEIGHT;
-		break;
-	case 3:
-		y += rand() % SCREEN_HEIGHT;
-		break;
+	}
+	else
+	{
+		y += lenghtAround - SCREEN_HEIGHT - SCREEN_WIDTH*2;
 	}
 	Enemy enemy(textures[ENEMYTEXTURE], x, y);
 	enemies.push_back(enemy);

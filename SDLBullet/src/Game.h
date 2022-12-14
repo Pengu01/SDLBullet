@@ -17,12 +17,19 @@ static const int SCREEN_HEIGHT = 1080;
 struct Object
 {
 public:
+	//width and height of texture in pixels
 	int oWidth = 0, oHeight = 0;
+	//texture for rendering
 	SDL_Texture* oTexture = NULL;
+	//angle at which the texture is rendered towards
 	double oAngle = 0;
+	//position on the map
 	float oX = 0, oY = 0;
+	//how much its position changes in x and y direciton every frame
 	float ovelX = 0, ovelY = 0;
+	//adds velx and vely to x and y times the speed modifier
 	void Move();
+	//how many pixels the texture can move per frame
 	float speedMod = 1.0f;
 private:
 };
@@ -36,6 +43,7 @@ public:
 		oTexture = texture;
 		speedMod = 2.0f;
 	}
+	//handles the players input and how it takes movement
 	void HandleEvent(SDL_Event& e);
 private:
 };
@@ -50,8 +58,11 @@ public:
 		bgState = {x,y };
 		tileSize = 64;
 	}
+	//moves the background around to seem like it is infinite while it is only one background moving
 	void BackgroundIllusion(SDL_FPoint offset);
+	//where the backgrounds offset is
 	SDL_FPoint bgState;
+	//size of the tiles the background is made of
 	int tileSize;
 private:
 };
@@ -66,6 +77,7 @@ public:
 		oX = x;
 		oY = y;
 	}
+	//makes a vector from the enemy to the player
 	void ToPlayer(Player player);
 private:
 };
